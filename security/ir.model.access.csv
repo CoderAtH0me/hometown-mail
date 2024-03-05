@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_portal_email_message_all,portal.email.message.all,model_portal_email_message,,1,1,1,1
+access_portal_fetchmail_all,portal.fetchmail.all,model_portal_fetchmail,,1,1,1,1

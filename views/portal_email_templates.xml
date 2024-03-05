@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Inherit from the breadcrumbs template to add a new menu entry for emails -->
+    <!-- <template id="portal_layout_emails" name="Emails" inherit_id="portal.portal_breadcrumbs" priority="40">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'email' or email" class="col-lg-2" t-attf-class="breadcrumb-item #{'active ' if not email else ''}">
+                <a t-if="email" t-attf-href="/my/emails">Emails</a>
+                <t t-else="">Emails</t>
+            </li>
+            <li t-if="page_name == 'email_detail' and email" class="breadcrumb-item active">
+                <a t-if="email" t-attf-href="/my/emails/{{ email.id }}?{{ keep_query() }}"><t t-esc="email.subject"/></a>
+            </li>
+            <li t-elif="email" t-attf-class="breadcrumb-item #{'active ' if not email else ''} text-truncate col-8 col-lg-10">
+                <t t-esc="email.subject"/>
+            </li>
+        </xpath>
+    </template> -->
+
+    <!-- Add a new entry in the portal home for email management -->
+    <template id="portal_my_home" name="Show Emails" customize_show="True" inherit_id="portal.portal_my_home" priority="40">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
+            <t t-set="portal_service_category_enable" t-value="True"/>
+        </xpath>
+        <div id="portal_service_category" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/mail_portal/static/src/img/email_icon.svg'"/>
+                <t t-set="title">Emails</t>
+                <t t-set="url" t-value="'/my/inbox'"/>
+                <t t-set="text">Manage and view your emails</t>
+                <!-- <t t-set="placeholder_count" t-value="'email_count'"/> -->
+                <!-- <t t-set="config_card" t-value="True"/> -->
+                <t t-set="placeholder_count" t-value="'emails_count'"/>
+                <t t-set="show_count" t-value="True"/>
+            </t>
+        </div>
+    </template>
+
+
+    <template id="emails_link_preview_front_end" inherit_id="portal.frontend_layout" primary="True">
+        <xpath expr="//*[@id='wrapwrap']" position="attributes">
+            <attribute name="t-attf-class" add="vh-100" separator=" "/>
+        </xpath>
+        <!-- <xpath expr="//t[@t-if='not_uses_default_logo'][1]" position="before">
+            <t t-if="preview_object.displayed_image_id">
+                <meta property="og:image" t-attf-content="/web/image/{{ preview_object.displayed_image_id.id }}/300x200?access_token={{ preview_object.displayed_image_id.generate_access_token()[0] }}"/>
+            </t>
+        </xpath>
+        <xpath expr="//t[@t-if='not_uses_default_logo'][2]" position="before">
+            <t t-if="preview_object.displayed_image_id">
+                <meta property="twitter:image" t-attf-content="/web/image/{{ preview_object.displayed_image_id.id }}/300x200?access_token={{ preview_object.displayed_image_id.generate_access_token()[0] }}"/>
+            </t>
+        </xpath> -->
+        <xpath expr="//header" position="before">
+            <t t-set="no_footer" t-value="True"/>
+        </xpath>
+        <!-- xpath to portal templates and override the "container" class with "container-fluid" -->
+        <xpath expr="//*[hasclass('container')]" position="attributes">
+            <attribute name="class" remove="container"/>
+            <attribute name="class" add="container-fluid" separator=" "/>
+        </xpath>
+    </template>
+    <!-- <template id="mail_portal_override_height" name="Main Frontend Layout" inherit_id="portal.frontend_layout">
+
+    </template> -->
+
+
+    <!-- <template id="emails_link_preview_portal_layout" inherit_id="portal.portal_layout" primary="True">
+
+        <xpath expr="//t[@t-call='portal.frontend_layout']" position="attributes">
+            <attribute name="t-call">mail_portal.emails_link_preview_front_end</attribute>
+        </xpath>
+
+        <xpath expr="//*[hasclass('container')]" position="attributes">
+            <attribute name="class" remove="container"/>
+            <attribute name="class" add="container-fluid" separator=" "/>
+        </xpath>
+    </template> -->
+
+    <template id="emails_portal_record_sidebar" inherit_id="portal.portal_record_sidebar">
+        <xpath expr="//div[@t-attf-class='#{classes}']" position="replace">
+            <div t-attf-class="#{classes}">
+                <div class="o_portal_sidebar_content sticky-lg-top mb-4 mb-lg-0 p-3 p-lg-0" id="sidebar_content">
+                    <div t-if="title" class="position-relative d-flex align-items-center justify-content-md-center justify-content-lg-between flex-wrap gap-2">
+                        <t t-out="title"/>
+                    </div>
+                    <t t-if="entries" t-out="entries"/>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="portal_my_emails" inherit_id="portal.portal_sidebar" name="My Emails" primary="True">
+
+        <xpath expr="//t[@t-call='portal.portal_layout']" position="attributes">
+            <attribute name="t-call">mail_portal.emails_link_preview_front_end</attribute>
+        </xpath>
+
+        <xpath expr="//*[@id='oe_structure_portal_sidebar_1']" position="replace">
+            <!-- <div class="oe_structure" id="oe_structure_portal_sidebar_1"/> -->
+        </xpath>
+
+        <xpath expr="//div[hasclass('o_portal_sidebar')]" position="replace">
+            <div class="o_portal_sidebar container-fluid">
+                <t t-set="no_breadcrumbs" t-value="True"/>
+
+                <!-- Emails Dashboard -->
+                <div class="row mt16 o_mail_portal_sidebar">
+                    <t t-call="mail_portal.emails_portal_record_sidebar">
+                        <t t-set="classes" t-value="'col-xl-2 col-md-1 col-auto'"/>
+
+                        <t t-set="title">
+                            <div class="d-flex flex-wrap flex-column flex-grow-1">
+                                <div id='o_compose_button' class="d-flex flex-grow-1">
+                                    <button class="btn btn-outline-secondary btn-block  my-2" type="button">
+                                        <i class="fa fa-pencil-square-o" aria-hidden="true"/>
+                                        Compose
+                                    </button>
+                                </div>
+                                <div class="p-0 list-group list-group-flush">
+                                    <a type="button" t-attf-class="d-flex justify-content-between align-items-center list-group-item list-group-item-action m-1 #{'active' if mailbox == 'inbox' else ''}" href="/my/inbox">
+                                        <i class="fa fa-inbox me-2" aria-hidden="true"></i>
+                                        <span class="flex-grow-1">Inbox</span>
+                                        <span class="badge rounded-pill text-bg-primary ms-5">14</span>
+                                    </a>
+                                    <a type="button" t-attf-class="d-flex justify-content-between align-items-center list-group-item list-group-item-action m-1 #{'active' if mailbox == 'starred' else ''}" href="#">
+                                        <i class="fa fa-star-o me-2" aria-hidden="true"/> 
+                                        <span class="flex-grow-1">Starred</span> 
+                                        <span class="badge rounded-pill text-bg-primary ms-5">2</span>
+                                    </a>
+                                    <a type="button" t-attf-class="d-flex justify-content-between align-items-center list-group-item list-group-item-action m-1 #{'active' if mailbox == 'drafts' else ''}" href="/my/drafts">
+                                        <i class="fa fa-file-o me-2" aria-hidden="true"/> 
+                                        <span class="flex-grow-1">Drafts</span> 
+                                        <!-- <span class="badge rounded-pill text-bg-primary ms-5">1</span> -->
+                                    </a>
+                                    <a type="button" t-attf-class="d-flex justify-content-between align-items-center list-group-item list-group-item-action m-1 #{'active' if mailbox == 'sent' else ''}" href="/my/sent">
+                                        <i class="fa fa-paper-plane-o me-2" aria-hidden="true"/> 
+                                        <span class="flex-grow-1">Sent</span> 
+                                        <span class="badge rounded-pill text-bg-primary ms-5">1</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                    <div id="list_content" class="col">
+                        <div class="d-flex flex-column justify-content-between flex-grow-1">
+                            <div class="row d-flex align-items-center">  
+                                <div class="col-auto">
+                                    <div class="btn-group form-check">
+                                        <!-- <button class="btn btn-outlined-secondary" type="button">
+                                          <i class="fa fa-square-o" aria-hidden="true"/>
+                                        </button> -->
+                                        <input type="checkbox" name="attrib" class="form-check-input"/>
+
+                                        <button type="button" class="btn btn-outlined-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                                          <span class=""></span>
+                                        </button>
+                                        <div class="dropdown-menu">
+                                            <a class="dropdown-item" href="#">Action</a>
+                                            <a class="dropdown-item" href="#">Another action</a>
+                                            <a class="dropdown-item" href="#">Something else here</a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item" href="#">Separated link</a>
+                                        </div>
+                                    </div>
+                                </div>  
+                                <div class="col-1">
+                                    <!-- <select class="form-control" name="category">
+                                        <t t-foreach="['test1', 'test2', 'test3']" t-as="category">
+                                            <option t-attf-value="#{category}"><t t-esc="category"/></option>
+                                        </t>
+                                    </select> -->
+                                    <div class="d-flex justify-content-center align-items-center">
+                                        <a href="/my/fetch_emails" class="btn btn-outlined-secondary" type="button"><i class="fa fa-undo" aria-hidden="true"/></a>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="Search emails..." />
+                                </div>
+                            </div>
+
+
+
+
+
+                            <div class="overflow-auto" style="height: 80dvh">
+                                <t t-if="emails">
+                                    <div class="list-group">
+                                        <t t-foreach="emails" t-as="email">
+                                            <a class="list-group-item list-group-item-action" t-att-href="'/my/%s/d/%s' % (mailbox, email['msg_id'])">
+                                                <div class="row text-nowrap">
+                                                    <div class="col-auto">
+                                                        <div class="form-check">
+                                                            <input type="checkbox" name="attrib" class="form-check-input"/>
+                                                            <!-- <input type="checkbox" name="attrib" class="form-check-input" t-att-id="'%s-%s' % (a.id,v.id)" t-att-value="'%s-%s' % (a.id,v.id)" t-att-checked="'checked' if v.id in attrib_set else None"/> -->
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <t t-if="False">
+                                                            <i class="fa fa-star" aria-hidden="true"/>
+                                                        </t>
+                                                        <t t-else="">
+                                                            <i class="fa fa-star-o" aria-hidden="true"/>
+                                                        </t>
+                                                    </div>
+                                                    <div class="o_mail_portal_email_from col-2 ms-2 text-nowrap overflow-hidden">
+                                                        <span class="o_email-display-name fw-bold" t-esc="email['email_display_name']"/>
+                                                        <span class="o_email-address fw-bold d-none" t-esc="email['email_address']"/>
+                                                    </div>
+                                                    <div class="col overflow-hidden">
+                                                        <span class="fw-bold" t-esc="email['subject']"/>
+
+                                                        <span class="fw-light" t-esc="' - ' + email['preview']"/>
+                                                    </div>
+                                                    <div class="col-auto ms-auto">
+                                                        <span t-esc="email['date']"/>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </t>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <div class="alert alert-warning" role="alert">
+                                        There are no emails.
+                                    </div>
+                                </t>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-center p-2">
+                                <div class="progress flex-grow-1">
+                                    <div class="progress-bar" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">25%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+
+
+
+    <!-- Template for the detail view of an email -->
+    <template id="portal_my_email" name="My Email">
+        <t t-call="portal.portal_layout">
+            <t t-set="title" t-value="email.subject"/>
+            <t t-set="o_portal_fullwidth_alert" groups="base.group_user">
+            </t>
+
+            <div class="container">
+                <h3 t-field="email.subject"/>
+            </div>
+        </t>
+    </template>
+</odoo>

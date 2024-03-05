@@ -1,0 +1,110 @@
+
+    <!-- <template id="portal_my_emails" name="My Emails">
+        <t t-call="portal.portal_layout">
+
+            <t t-if="emails">
+                <table class="table o_portal_emails">
+                    <thead>
+                        <tr>
+                            <th><i class="fa fa-star-o" aria-hidden="true"/> Important</th>
+                            <th>From</th>
+                            <th>Subject</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="emails" t-as="email" t-att-class="">
+                            <td>
+                                <t t-if="True">
+                                    <i class="fa fa-star" aria-hidden="true"/>
+                                </t>
+                                <t t-else="">
+                                    <i class="fa fa-star-o" aria-hidden="true"/>
+                                </t>
+                            </td>
+                            <td>
+                                <span t-esc="email['email_from']"/>
+                            </td>
+                            <td>
+                                <a t-att-href="'/my/emails/%s' % email['id']" t-esc="email['subject']"/>
+                            </td>
+                            <td>
+                                <span t-esc="email['date']"/>
+                            </td>
+                            <td>
+
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </t>
+            <t t-else="">
+            </t>
+        </t>
+    </template> -->
+
+
+    <!-- Template for the list view of emails -->
+    <!-- <template id="portal_my_emails" name="My Emails">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">Emails</t>
+            </t>
+
+            <div class="d-flex justify-content-end mb-2">
+                <a href="/my/fetch_emails" class="btn btn-primary">Fetch Emails</a>
+            </div>
+
+            <t t-if="not emails">
+                <div class="alert alert-warning" role="alert">
+                    There are no emails.
+                </div>
+            </t>
+
+            <t t-if="emails">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Subject</th>
+                            <th>Date</th>
+                            <th>From</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="emails" t-as="email">
+                            <td>
+                                <span t-esc="email_index + 1"/>
+                            </td>
+                            <td>
+                                <a t-att-href="'/my/emails/%s' % email['id']" t-esc="email['subject']"/>
+                            </td>
+                            <td>
+                                <span t-esc="email['date']"/>
+                            </td>
+                            <td>
+                                <span t-esc="email['email_from']"/>
+                            </td>
+                            <td> -->
+                                <!-- Placeholder for email status widget, similar to tasks -->
+                                <!-- You'll need to create a similar widget based on your email status -->
+                            <!-- </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </t>
+        </t>
+    </template> -->
+
+
+
+
+            <!-- Extend portal_my_emails template to include the sidebar -->
+    <!-- <template id="portal_my_emails_inherit" inherit_id="portal_my_emails">
+        <xpath expr="//div[@class='o_portal_emails']" position="before">
+            <t t-call="email_sidebar"/>
+        </xpath>
+    </template> -->

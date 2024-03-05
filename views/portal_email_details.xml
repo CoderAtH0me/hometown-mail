@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="portal_email_details" inherit_id="mail_portal.portal_my_emails" name="Email Details" primary="True">
+        <xpath expr="//*[@id='list_content']" position="replace">
+            <div id="list_content" class="col">
+                <div class="d-flex flex-column">
+                    <div id="dashboard_header" class="d-flex flex-row justify-content-start align-items-center">
+                        <div class="d-inline p-2">
+                            <i class="fa fa-angle-left" aria-hidden="true"/>
+                        </div>
+                        <div class="d-inline p-2">
+                            <i class="fa fa-trash-o" aria-hidden="true"/>
+                        </div>
+                        <div class="d-inline p-2">
+                            <i class="fa fa-reply" aria-hidden="true"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>
