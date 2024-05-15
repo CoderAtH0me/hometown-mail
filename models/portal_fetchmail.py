@@ -8,6 +8,7 @@ import time
 import dateutil
 import lxml
 import re
+import numbers
 
 
 from lxml import etree
@@ -25,7 +26,7 @@ from imaplib import IMAP4, IMAP4_SSL
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from email.utils import parsedate_to_datetime, parseaddr
-from datetime import datetime
+from datetime import datetime, timezone
 import pytz
 
 MAIL_TIMEOUT = 60
@@ -160,61 +161,197 @@ class PortalFetchmail(models.Model):
 
     #========================================================#
     # Methods for emails List 
+
     def fetch_mail_list(self, mailbox='inbox'):
-        """Fetch emails from the server and log them."""
-        previews = []
+        messages = []
 
         for server in self:
-            # Connect to the mail server
             try:
-                # server.confirm_login()
-                
                 mail_server = server.connect()
-
-                # Select the mailbox
                 mailbox = server._prepare_mailbox_name(mailbox)
 
-                select_status, _ = mail_server.select(mailbox)  # Change as necessary for different folders
+                select_status, _ = mail_server.select(mailbox)
                 if select_status != 'OK':
                     raise Exception(f"Failed to select mailbox: {mailbox}")
 
-                # Search for all unseen emails
-                status, email_ids = mail_server.search(None, '(ALL)')
-                if status != 'OK':
+                typ, data = mail_server.uid('SEARCH', None, '(ALL)')
+
+                if typ != 'OK':
                     raise Exception("No emails found.")
 
-                for e_id in email_ids[0].split():
-   
-                    status, email_data = mail_server.fetch(e_id, '(RFC822)')
+                uids = data[0].split()
+                for e_uid in uids:
+                    status, header_data = mail_server.uid('FETCH', e_uid, '(BODY.PEEK[HEADER])')
+
                     if status != 'OK':
-                        raise Exception("Failed to fetch the email.")
+                        raise Exception("Failed to fetch the email header.")
 
-                    ###################### OLD ##########
-                    # server.message_process(email_data[0][1], email_id=e_id)
-                    ####################################
-                    message = email_data[0][1]
-                    if isinstance(message, str):
-                        message = message.encode('utf-8')
-                    email_message = message_from_bytes(message, policy=policy.SMTP)
-                    email_preview = self.messages_previews_parse(email_message)
+                    header = header_data[0][1]
 
-                    e_id_int = int(e_id.decode('utf-8'))
+                    if isinstance(header, str):
+                        header = header.encode('utf-8')
+                    email_message = message_from_bytes(header, policy=policy.SMTP)
 
-                    email_preview['id'] = e_id_int
-                    previews.append(email_preview)
+                    # Parsing subject, date, message ID, references, etc.
+                    email_info = self.parse_email_headers(email_message)
 
-                    # Mark email as seen (optional based on requirement)
-                    # mail_server.store(e_id, '+FLAGS', '\\Seen')
+                    email_info['uid'] = int(e_uid.decode('utf-8'))
+                    email_info['mailbox'] = mailbox
 
-                # Logout/close the connection
+                    messages.append(email_info)
+
                 mail_server.close()
                 mail_server.logout()
-    
+
             except Exception as e:
                 _logger.error("[OLEK][fetch_mail_list] An error occurred: %s", e)
                 raise
 
-        return previews
+            self.env['portal.email.thread'].process_incoming_messages(messages)
+            composed_threads = self.env['portal.email.thread'].get_threads()
+            _logger.debug('[OLEK][portal.fetchmail][fetch_mail_list] composed_threads %s', composed_threads)
+
+        _logger.debug('[OLEK][portal.fetchmail][fetch_mail_list] composed_threads %s', composed_threads)
+        return composed_threads
+
+    def parse_email_headers(self, email_message):
+        email_info = {}
+        email_info['subject'] = email_message['Subject']
+        email_info['date'] = email_message['Date']
+        email_info['message_id'] = email_message['Message-ID']
+        email_info['references'] = email_message.get('References', '').split()
+        email_info['sender'] = email_message['From']
+        return email_info
+
+
+    def compose_threads(self, messages):
+        threads = []
+        thread_lookup = {}
+
+        for msg in messages:
+            message_id = msg['message_id']
+            references = msg['references']
+
+            if references:
+                thread_id = hashlib.md5(references[0].encode('utf-8')).hexdigest()
+            else:
+                thread_id = hashlib.md5(message_id.encode('utf-8')).hexdigest()
+
+            msg_date = parsedate_to_datetime(msg['date'])
+            if msg_date.tzinfo is None:
+                msg_date = msg_date.replace(tzinfo=timezone.utc)
+
+            if thread_id in thread_lookup:
+                thread = thread_lookup[thread_id]
+                thread['message_ids'].append(message_id)
+                if msg_date > thread['date']:
+                    thread['date'] = msg_date
+            else:
+                thread = {
+                    'thread_id': thread_id,
+                    'message_ids': [message_id],
+                    'sender': msg['sender'],
+                    'subject': msg['subject'],
+                    'date': msg_date,
+                }
+                threads.append(thread)
+                thread_lookup[thread_id] = thread
+
+        # Sort the threads by date in descending order
+        threads.sort(key=lambda x: x['date'], reverse=True)
+
+        return threads
+
+    # def compose_threads(self, messages):
+    #     threads = {}
+
+    #     for msg in messages:
+    #         subject = msg['subject']
+    #         message_id = msg['message_id']
+    #         references = msg.get('references', [])
+
+    #         thread_id = None
+    #         for ref in references:
+    #             if ref in threads:
+    #                 thread_id = ref
+    #                 break
+
+    #         if thread_id is None:
+    #             thread_id = message_id
+
+    #         if thread_id not in threads:
+    #             threads[thread_id] = []
+
+    #         threads[thread_id].append(msg)
+
+    #     return threads
+
+    def store_threads_in_database(self, threads):
+        # for thread_id, messages in threads.items():
+            # Store the thread information in the Odoo database
+            # Create or update the thread record
+            # Associate the messages with the thread
+            # You can use Odoo's ORM methods to interact with the database
+            pass
+
+
+
+    # def fetch_mail_list(self, mailbox='inbox'):
+    #     """Fetch emails from the server and log them."""
+    #     previews = []
+
+    #     for server in self:
+    #         # Connect to the mail server
+    #         try:                
+    #             mail_server = server.connect()
+    #             mailbox = server._prepare_mailbox_name(mailbox)
+
+    #             select_status, _ = mail_server.select(mailbox)
+    #             if select_status != 'OK':
+    #                 raise Exception(f"Failed to select mailbox: {mailbox}")
+
+    #             typ, data = mail_server.uid('SEARCH',  None, '(ALL)')
+
+    #             if typ != 'OK':
+    #                 raise Exception("No emails found.")
+
+    #             uids = data[0].split()
+    #             for e_uid in uids:
+    #                 status, email_data = mail_server.uid('FETCH', e_uid, '(RFC822)')
+
+    #                 if status != 'OK':
+    #                     raise Exception("Failed to fetch the email.")
+
+    #                 message = email_data[0][1]
+
+    #                 if isinstance(message, str):
+    #                     message = message.encode('utf-8')
+    #                 email_message = message_from_bytes(message, policy=policy.SMTP)
+
+    #                 # Parsing subject date body etc.
+    #                 email_preview = self.messages_previews_parse(email_message)
+
+    #                 # UID RETRIEVING
+    #                 _logger.debug('[OLEK][fetch_mail_list] e_id = %s', e_uid)
+
+    #                 e_uid_int = int(e_uid.decode('utf-8'))
+
+    #                 email_preview['uid'] = e_uid_int
+
+
+    #                 previews.append(email_preview)
+    #                 # Mark email as seen (optional based on requirement)
+    #                 # mail_server.store(e_id, '+FLAGS', '\\Seen')
+
+    #             # Logout/close the connection
+    #             mail_server.close()
+    #             mail_server.logout()
+    
+    #         except Exception as e:
+    #             _logger.error("[OLEK][fetch_mail_list] An error occurred: %s", e)
+    #             raise
+
+    #     return previews
     
 
     @api.model
@@ -238,15 +375,19 @@ class PortalFetchmail(models.Model):
         # # Extracting necessary details
         # preview_dict['id'] = message.get('Message-Id', '').strip()
         # _logger.info("[OLEK][messages_previews_parse] preview_dict['id']: %s", preview_dict['id'])
-
-        # Extracting necessary details
-        full_msg_id = message.get('Message-Id', '').strip()
-        _logger.info("[OLEK][messages_previews_parse] full_msg_id: %s", full_msg_id)
-
-        # Normalize Message-ID
-        normalized_msg_id = self._normalize_message_id(full_msg_id)
-        preview_dict['msg_id'] = normalized_msg_id
-        _logger.info("[OLEK][messages_previews_parse] normalized_msg_id: %s", normalized_msg_id)
+# ===================== OLD ==============================
+        # # Extracting necessary details
+        # full_msg_id = message.get('Message-Id', '').strip()
+        # _logger.info("[OLEK][messages_previews_parse] full_msg_id: %s", full_msg_id)
+        
+        # # Normalize Message-ID
+        # normalized_msg_id = self._normalize_message_id(full_msg_id)
+        # preview_dict['msg_id'] = normalized_msg_id
+        # _logger.info("[OLEK][messages_previews_parse] normalized_msg_id: %s", normalized_msg_id)
+# =====================^^^^^^^ ====================================
+        # #TODO : DELETE THIS
+        # preview_dict['msg_id'] = 'TESTID'
+        # # ^^^^^^^^^^^^^^^^^^===========
 
         preview_dict['subject'] = tools.decode_message_header(message, 'Subject')
 
@@ -320,92 +461,202 @@ class PortalFetchmail(models.Model):
 
     #==================================================
     # Methods For Thread Fetching
+    def fetch_mail_thread(self, mailbox, mail_uid, charset='UTF-8'):
 
-    def fetch_mail_thread(self, mailbox, mail_id, threading_algorithm='REFERENCES', charset='UTF-8'):
         for server in self:
             try:
+                mail_server = server.connect()
                 mailbox = server._prepare_mailbox_name(mailbox)
 
-                mail_server = server.connect()
+                select_status, _ = mail_server.select()
+                if not select_status:
+                    raise Exception("Unable to select mailbox.")
 
-                #FOR TEST ONLY
-                mailbox = 'virtual/All'
-                select_status, _ = mail_server.select(f"'{mailbox}'")
-                if select_status:
-                    _logger.info('[OLEK][portal.fetchmail][fetch_mail_thread] select_status %s', select_status)
+                # Fetch the initial message, including important headers
+                status, message_data = mail_server.uid('FETCH', mail_uid, '(RFC822 HEADER)')
 
-                if select_status != 'OK':
-                    raise Exception('Failed to select mailbox %s' % mailbox)
-
-                status, email_ids = mail_server.search(None, '(ALL)')
                 if status != 'OK':
-                    raise Exception("No emails found.")
+                    raise Exception("Error fetching initial message.")
 
-                _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] email_ids %s', email_ids)
+                message = message_from_bytes(message_data[0][1], policy=policy.SMTP)
 
-                # server._check_imap_capabilities(mail_server)
+                # Placeholder: Process initial message headers
+                initial_message_id = message['Message-ID']  
+                # ... (store any other relevant info)
+                _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] initial_message_id %s', initial_message_id)
+                thread_messages = [message]  # Start with the initial message
+                _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_messages %s', thread_messages)
 
-                # mail_id = str(mail_id).encode('utf-8')
-                # Convert the normalized ID back to its original format
-                full_mail_id = "<{}@docker.local>".format(mail_id)
+                # Build the thread
+                def build_thread(message):
+                    message_id = message['Message-ID']
+                    references = message.get_all('References', [])  # Includes In-Reply-To
 
-                _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] full_mail_id %s', full_mail_id)
+                    if not message_id or not references:
+                        return  # Cannot build the thread further
 
+                    for ref_id in references:
+                        status, data = mail_server.uid('SEARCH', charset, f'(HEADER Message-ID {ref_id})')
+                        _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] ref_id %s', ref_id)
+                        _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] data %s', data)
+                        if status == 'OK' and data[0]:  # Found a matching message
+                            ref_uid = data[0].split()[-1]  # Get the UID
+                            status, message_data = mail_server.uid('FETCH', ref_uid, '(RFC822)')
+
+                            if status == 'OK':
+                                full_message = message_from_bytes(message_data[0][1], policy=policy.SMTP)
+                                # ***Extract necessary headers***
+                                message_id = full_message['Message-ID']  
+                                references = full_message.get_all('References', [])  
+                                thread_messages.append(full_message)  # Add the full message
+                                build_thread(full_message)  # Recursive step
+
+                build_thread(message)  # Start building the thread
                 
-                # # Search for the numeric ID associated with the full_mail_id
-                # typ, data = mail_server.search(None, '(HEADER Message-ID "%s")' % full_mail_id)
-                # if typ != 'OK' or not data[0]:
-                #     _logger.error("Failed to find message with Message-ID %s", full_mail_id)
-                #     return []
-
-                # numeric_id = data[0].split()[0]  # Assuming the first result is the correct one
-                # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Numeric ID %s', numeric_id)
-
-                # # Fetch the headers of the specified email using its numeric ID
-                # status, email_data = mail_server.fetch(numeric_id, '(RFC822.HEADER)')
-                # if status == 'OK':
-                #     headers = email_data[0][1].decode('utf-8')
-                #     _logger.info('[OLEK][portal.fetchmail][fetch_mail_thread] Email Headers: %s', headers)
-                # else:
-                #     _logger.error('[OLEK][portal.fetchmail][fetch_mail_thread] Failed to fetch email headers')
-
-
-                # # Fetching the thread containing the specific email
-                # status, thread_data = mail_server.thread(threading_algorithm, charset, 'HEADER Message-ID "%s"' % mail_id)
-
-
-                         # Search for messages in the mailbox to set the search context
-
-
-                # Now perform the threading on the searched messages
-                # status, thread_data = mail_server.thread(threading_algorithm, charset, 'ALL')
-                
-                # result = mail_server.uid('thread', threading_algorithm, charset, 'ALL')
-                # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] result %s', result)
-
-                # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Thread status %s', status)
-                # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Thread data %s', thread_data)
-
-                # if status != 'OK':
-                #     raise Exception("Failed to fetch thread")
-
-                # Parsing thread data
-                # thread_emails = self.parse_thread_data(thread_data)
-                thread_messages = []
-
-                # Fetching details for each email in the thread
-                # for email_id in thread_emails:    
-                #     status, email_data = mail_server.fetch(email_id, '(RFC822)')
-                #     if status == 'OK':
-                #         msg_dict = server.message_process(email_data[0][1])
-                #         thread_messages.append(msg_dict)
-
-                # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_messages %s', thread_messages)
+                _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_messages %s')
 
                 return thread_messages
+
             except Exception as e:
                 _logger.error("[OLEK][portal.fetchmail][fetch_mail_thread] An error occurred: %s", e)
-                raise
+                raise 
+
+
+    # def fetch_mail_thread(self, mailbox, mail_uid, threading_algorithm='REFERENCES', charset='UTF-8'):
+    # # def fetch_mail_thread(self, mailbox, mail_uid, threading_algorithm='ORDEREDSUBJECT', charset='UTF-8'):
+
+    #     for server in self:
+    #         try:
+    #             mail_server = server.connect()
+    #             mailbox = server._prepare_mailbox_name(mailbox)
+
+    #             select_status, _ = mail_server.select()
+    #             if not select_status:
+    #                 raise Exception("Unable to select mailbox.")
+
+    #             # Threading using UID
+    #             status, thread_data = mail_server.uid('THREAD', threading_algorithm, charset, f'(HEADER Message-ID {mail_uid})')
+
+    #             if status != 'OK':
+    #                 raise Exception("Error during email threading.")
+
+    #             _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_data %s', thread_data)
+    #             # Process thread_data
+    #             thread_ids_str = thread_data[0].decode('utf-8')  # Decode to string
+    #             # thread_ids = thread_ids_str.strip('()').split(')(')  # Remove parentheses and split
+
+    #             thread_messages = []
+    #             _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_ids_str %s', thread_ids_str)
+    #             # type of thread_data
+    #             _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_ids_str type %s', type(thread_ids_str))
+    #             # Process thread_data
+    #             for thread_uid in []: #thread_ids:
+    #                 _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_uid %s', thread_uid)
+
+    #                 status, message_data = mail_server.uid('FETCH', thread_uid, '(RFC822)')
+    #                 if status == 'OK':
+    #                     _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] message_data %s', message_data)
+    #                     # ... (Process message_data, extract Message-ID if needed) 
+    #                     thread_messages.append(message_data) 
+    #                 else:
+    #                     _logger.warning("Failed to fetch message with UID: %s", thread_uid)
+
+    #             return thread_messages
+
+    #         except Exception as e:
+    #             _logger.error("[OLEK][portal.fetchmail][fetch_mail_thread] An error occurred: %s", e)
+    #             raise
+
+
+    # ========================================= OLD =========================
+
+    # def fetch_mail_thread(self, mailbox, mail_id, threading_algorithm='REFERENCES', charset='UTF-8'):
+    #     for server in self:
+    #         try:
+    #             mailbox = server._prepare_mailbox_name(mailbox)
+
+    #             mail_server = server.connect()
+
+    #             select_status, _ = mail_server.select()
+    #             if select_status:
+    #                 _logger.info('[OLEK][portal.fetchmail][fetch_mail_thread] select_status %s', select_status)
+
+    #             # if select_status != 'OK':
+    #             #     raise Exception('Failed to select mailbox %s' % mailbox)
+
+    #             status, email_ids = mail_server.search(None, '(ALL)')
+    #             if status != 'OK':
+    #                 raise Exception("No emails found.")
+
+    #             _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] email_ids %s', email_ids)
+
+    #             # server._check_imap_capabilities(mail_server)
+
+    #             # mail_id = str(mail_id).encode('utf-8')
+    #             # Convert the normalized ID back to its original format
+
+                
+    #             # full_mail_id = "<{}@docker.local>".format(mail_id)
+
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] full_mail_id %s', full_mail_id)
+
+                
+    #             # # Search for the numeric ID associated with the full_mail_id
+    #             # typ, data = mail_server.search(None, '(HEADER Message-ID "%s")' % full_mail_id)
+    #             # if typ != 'OK' or not data[0]:
+    #             #     _logger.error("Failed to find message with Message-ID %s", full_mail_id)
+    #             #     return []
+
+    #             # numeric_id = data[0].split()[0]  # Assuming the first result is the correct one
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Numeric ID %s', numeric_id)
+
+    #             # # Fetch the headers of the specified email using its numeric ID
+    #             # status, email_data = mail_server.fetch(numeric_id, '(RFC822.HEADER)')
+    #             # if status == 'OK':
+    #             #     headers = email_data[0][1].decode('utf-8')
+    #             #     _logger.info('[OLEK][portal.fetchmail][fetch_mail_thread] Email Headers: %s', headers)
+    #             # else:
+    #             #     _logger.error('[OLEK][portal.fetchmail][fetch_mail_thread] Failed to fetch email headers')
+
+
+    #             # # Fetching the thread containing the specific email
+    #             # status, thread_data = mail_server.thread(threading_algorithm, charset, 'HEADER Message-ID "%s"' % mail_id)
+
+
+    #                      # Search for messages in the mailbox to set the search context
+
+
+    #             # # Now perform the threading on the searched messages
+    #             # status, thread_data = mail_server.thread(threading_algorithm, charset, 'ALL')
+                
+    #             # result = mail_server.uid('thread', threading_algorithm, charset, 'ALL')
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] result %s', result)
+
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Thread status %s', status)
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] Thread data %s', thread_data)
+
+    #             # if status != 'OK':
+    #             #     raise Exception("Failed to fetch thread")
+
+    #             # # Parsing thread data
+    #             # thread_emails = self.parse_thread_data(thread_data)
+    #             thread_messages = []
+
+    #             # # Fetching details for each email in the thread
+    #             # for email_id in thread_emails:    
+    #             #     status, email_data = mail_server.fetch(email_id, '(RFC822)')
+    #             #     if status == 'OK':
+    #             #         msg_dict = server.message_process(email_data[0][1])
+    #             #         thread_messages.append(msg_dict)
+
+    #             # _logger.debug('[OLEK][portal.fetchmail][fetch_mail_thread] thread_messages %s', thread_messages)
+
+    #             return thread_messages
+    #         except Exception as e:
+    #             _logger.error("[OLEK][portal.fetchmail][fetch_mail_thread] An error occurred: %s", e)
+    #             raise
+
+# ============================================================== OLD =============================#
 
     def parse_thread_data(self, thread_data):
         """
@@ -426,6 +677,25 @@ class PortalFetchmail(models.Model):
 
     #======================================================#
     # Methods For Individual View
+
+    @api.model
+    def fetch_thread_messages(self, message_ids):
+        messages = []
+        for server in self:
+            try:
+                mail_server = server.connect()
+                for msg_id in message_ids:
+                    typ, msg_data = mail_server.uid('FETCH', msg_id, '(RFC822)')
+                    if typ == 'OK':
+                        email_message = message_from_string(msg_data[0][1], policy=email.policy.default)
+                        # Parse and process the email message
+                        messages.append(email_message)
+                mail_server.close()
+                mail_server.logout()
+            except Exception as e:
+                _logger.error("[OLEK][fetch_thread_messages] An error occurred: %s", e)
+                raise
+        return messages
 
     def fetch_mail_detail(self, mailbox, mail_id):
         for server in self:

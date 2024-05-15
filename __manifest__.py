@@ -27,7 +27,8 @@ allowing users to view and manage their email accounts.
         # List of data files which should be loaded when installing/updating the module
         'views/portal_email_templates.xml',
         'views/portal_email_details.xml',
-        'security/ir.model.access.csv'
+        'security/ir.model.access.csv',
+        'data/portal_mailbox_data.xml',
     ],
     'assets': {
         'web.assets_frontend': [

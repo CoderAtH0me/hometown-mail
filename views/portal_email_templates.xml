@@ -179,14 +179,11 @@
                             </div>
 
 
-
-
-
                             <div class="overflow-auto" style="height: 80dvh">
                                 <t t-if="emails">
                                     <div class="list-group">
                                         <t t-foreach="emails" t-as="email">
-                                            <a class="list-group-item list-group-item-action" t-att-href="'/my/%s/d/%s' % (mailbox, email['msg_id'])">
+                                            <a class="list-group-item list-group-item-action" t-att-href="'/my/%s/d/%s' % (mailbox, email['thread_id'])">
                                                 <div class="row text-nowrap">
                                                     <div class="col-auto">
                                                         <div class="form-check">
@@ -203,16 +200,21 @@
                                                         </t>
                                                     </div>
                                                     <div class="o_mail_portal_email_from col-2 ms-2 text-nowrap overflow-hidden">
-                                                        <span class="o_email-display-name fw-bold" t-esc="email['email_display_name']"/>
-                                                        <span class="o_email-address fw-bold d-none" t-esc="email['email_address']"/>
+                                                        <!-- <span class="o_email-display-name fw-bold" t-esc="email['email_display_name']"/>
+                                                        <span class="o_email-address fw-bold d-none" t-esc="email['email_address']"/> -->
                                                     </div>
                                                     <div class="col overflow-hidden">
                                                         <span class="fw-bold" t-esc="email['subject']"/>
 
-                                                        <span class="fw-light" t-esc="' - ' + email['preview']"/>
+                                                        <!-- <span class="fw-light" t-esc="' - ' + email['preview']"/> -->
                                                     </div>
                                                     <div class="col-auto ms-auto">
-                                                        <span t-esc="email['date']"/>
+                                                        <t t-if="email['date'].date() == datetime.date.today()">
+                                                            <t t-esc="email['date'].strftime('%H:%M')"/>
+                                                        </t>
+                                                        <t t-else="">
+                                                            <t t-esc="email['date'].strftime('%b %d')"/>
+                                                        </t>
                                                     </div>
                                                 </div>
                                             </a>

@@ -20,7 +20,7 @@ import xmlrpc.client
 def main():
     parser = argparse.ArgumentParser(usage='%(prog)s [options]', description='Odoo Mailgate Script')
     parser.add_argument("-d", "--database", help="Odoo database name", default='first_db')
-    parser.add_argument("-u", "--userid", help="Odoo user id to connect with", type=int, default=2)
+    parser.add_argument("-u", "--userid", help="Odoo user id to connect with", type=int, default=3)
     parser.add_argument("-p", "--password", help="Odoo user password", default='supersecret')
     parser.add_argument("--host", help="Odoo host", default='192.168.43.215')
     parser.add_argument("--port", help="Odoo port", type=int, default=8069)

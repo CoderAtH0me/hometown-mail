@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# from . import portal_email_thread
+from . import portal_email_mailbox
+
+from . import portal_email_thread
 
 from . import portal_fetchmail
 

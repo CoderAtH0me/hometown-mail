@@ -90,32 +90,62 @@ class EmailCustomerPortal(CustomerPortal):
 
     #     return request.render("mail_portal.portal_my_emails", values)
 
+    # @http.route(['/my/<string:mailbox>', '/my/<string:mailbox>/page/<int:page>'], type='http', auth='user', website=True)
+    # def portal_mailbox(self, mailbox='inbox', page=1, **kw):
+    #     values = self._prepare_portal_layout_values()
+
+    #     current_user_partner_id = request.env.user.partner_id.id
+    #     record = request.env['portal.fetchmail'].sudo().search([('partner_id', '=', current_user_partner_id)], limit=1)
+
+    #     if record:
+    #         email_previews = record.fetch_mail_list(mailbox=mailbox)
+
+    #         # Use the pager for real navigation through pages
+    #         pager = portal_pager(
+    #             url=f"/my/{mailbox}",
+    #             total=50,  # You might want to replace this with actual count
+    #             page=page,
+    #             step=self._items_per_page
+    #         )
+    #         emails_placeholder = [{"uid": 1, "subject": "Test Email 1", "date": "2023-01-01 10:00:00"}, {"uid": 2, "subject": "Test Email 2", "date": "2023-01-02 11:00:00" }]
+    #         values.update({
+    #             'emails': emails_placeholder,
+    #             'page_name': 'email',
+    #             'default_url': f'/my/{mailbox}',
+    #             'pager': pager,
+    #             'mailbox': mailbox,  # You can use this in your view to highlight the active mailbox
+    #         })
+
+    #     return request.render("mail_portal.portal_my_emails", values)
+
     @http.route(['/my/<string:mailbox>', '/my/<string:mailbox>/page/<int:page>'], type='http', auth='user', website=True)
     def portal_mailbox(self, mailbox='inbox', page=1, **kw):
         values = self._prepare_portal_layout_values()
-
+    
         current_user_partner_id = request.env.user.partner_id.id
-        record = request.env['portal.fetchmail'].sudo().search([('partner_id', '=', current_user_partner_id)], limit=1)
+        # CHANGE TO THE THREAD
+        threads = request.env['portal.email.thread'].sudo().get_threads(current_user_partner_id, mailbox)
+    
+            # Paginate the threads
+        pager = portal_pager(
+            url=f"/my/{mailbox}",
+            total=len(threads),
+            page=page,
+            step=self._items_per_page
+        )
 
-        if record:
-            email_previews = record.fetch_mail_list(mailbox=mailbox)
+        start = (page - 1) * self._items_per_page
+        end = start + self._items_per_page
+        paginated_threads = threads[start:end]
 
-            # Use the pager for real navigation through pages
-            pager = portal_pager(
-                url=f"/my/{mailbox}",
-                total=50,  # You might want to replace this with actual count
-                page=page,
-                step=self._items_per_page
-            )
-
-            values.update({
-                'emails': email_previews,
-                'page_name': 'email',
-                'default_url': f'/my/{mailbox}',
-                'pager': pager,
-                'mailbox': mailbox,  # You can use this in your view to highlight the active mailbox
-            })
-
+        values.update({
+            'emails': paginated_threads,
+            'page_name': 'email',
+            'default_url': f'/my/{mailbox}',
+            'pager': pager,
+            'mailbox': mailbox,
+        })
+    
         return request.render("mail_portal.portal_my_emails", values)
 
 
